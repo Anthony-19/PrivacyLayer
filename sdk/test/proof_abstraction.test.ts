@@ -4,8 +4,8 @@ import { generateWithdrawalProof } from '../src/withdraw';
 
 class MockBackend implements ProvingBackend {
   async generateProof(witness: any): Promise<Uint8Array> {
-    // Return a dummy 64-byte proof
-    return new Uint8Array(64).fill(0xab);
+    // Placeholder: production Groth16 payload is 256 bytes (A || B || C)
+    return new Uint8Array(256).fill(0xab);
   }
 }
 
@@ -22,9 +22,8 @@ describe('Proving Path Abstraction', () => {
     
     const merkleProof: MerkleProof = {
       root: Buffer.from('03'.repeat(32), 'hex'),
-      pathElements: [Buffer.from('04'.repeat(32), 'hex')],
-      pathIndices: [0],
-      leafIndex: 0
+      pathElements: Array.from({ length: 20 }, () => Buffer.from('04'.repeat(32), 'hex')),
+      leafIndex: 0,
     };
     
     const request = {
@@ -38,7 +37,7 @@ describe('Proving Path Abstraction', () => {
     const proof = await generateWithdrawalProof(request, backend);
     
     expect(proof).toBeDefined();
-    expect(proof.length).toBe(64);
+    expect(proof.length).toBe(256);
     expect(proof[0]).toBe(0xab);
   });
 

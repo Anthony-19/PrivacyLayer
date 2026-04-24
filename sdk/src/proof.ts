@@ -1,15 +1,19 @@
 import { Note } from './note';
 import {
   computeNullifierHash,
+  fieldToHex,
   merkleNodeToField,
   noteScalarToField,
   stellarAddressToField,
 } from './encoding';
+import { validateMerkleProof } from './merkle';
+import { assertValidGroth16ProofBytes, assertValidPreparedWithdrawalWitness, assertValidStellarAccountId } from './witness';
 
 export interface MerkleProof {
   root: Buffer;
   pathElements: Buffer[];
-  pathIndices: number[];
+  /** If provided and non-empty, must match the Merkle path length (e.g. 20). */
+  pathIndices?: number[];
   leafIndex: number;
 }
 
@@ -100,6 +104,7 @@ export class ProofGenerator {
         'Proving backend not configured. Please provide a backend to the ProofGenerator.'
       );
     }
+    assertValidPreparedWithdrawalWitness(witness);
     return this.backend.generateProof(witness);
   }
 
@@ -122,14 +127,19 @@ export class ProofGenerator {
     relayer: string = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
     fee: bigint = 0n
   ): Promise<PreparedWitness> {
+    validateMerkleProof(merkleProof);
+    assertValidStellarAccountId(recipient, 'recipient');
+    if (fee > 0n) {
+      assertValidStellarAccountId(relayer, 'relayer');
+    }
     const nullifierField = noteScalarToField(note.nullifier);
     const secretField = noteScalarToField(note.secret);
     const rootField = merkleNodeToField(merkleProof.root);
     const nullifierHash = computeNullifierHash(nullifierField, rootField);
     const recipientField = stellarAddressToField(recipient);
-    const relayerField = stellarAddressToField(relayer);
+    const relayerField = fee === 0n ? fieldToHex(0n) : stellarAddressToField(relayer);
 
-    return {
+    const witness: PreparedWitness = {
       // Private witnesses
       nullifier: nullifierField,
       secret: secretField,
@@ -143,6 +153,8 @@ export class ProofGenerator {
       relayer: relayerField,
       fee: fee.toString(),
     };
+    assertValidPreparedWithdrawalWitness(witness);
+    return witness;
   }
 
   /**
@@ -151,6 +163,7 @@ export class ProofGenerator {
    */
   static formatProof(rawProof: Uint8Array): Buffer {
     // Soroban contract expects Proof struct: { a: BytesN<64>, b: BytesN<128>, c: BytesN<64> }
+    assertValidGroth16ProofBytes(rawProof, 'rawProof');
     return Buffer.from(rawProof);
   }
 }

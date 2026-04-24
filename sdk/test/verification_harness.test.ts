@@ -83,12 +83,15 @@ describe('Verification Harness', () => {
     
     const merkleProof: MerkleProof = {
       root: Buffer.from('03'.repeat(32), 'hex'),
-      pathElements: [Buffer.from('04'.repeat(32), 'hex')],
-      pathIndices: [0],
+      pathElements: Array.from({ length: 20 }, () => Buffer.from('04'.repeat(32), 'hex')),
       leafIndex: 0
     };
 
-    const witness = await ProofGenerator.prepareWitness(note, merkleProof, '0xrec');
+    const witness = await ProofGenerator.prepareWitness(
+      note,
+      merkleProof,
+      'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF'
+    );
     const publicInputs = extractPublicInputs(witness);
     
     expect(publicInputs).toHaveLength(6);

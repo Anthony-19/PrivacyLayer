@@ -120,3 +120,11 @@ jobs:
             --issue-key "${ISSUE_KEY}" \
             --run \
             "${EXTRA_ARGS[@]}"
+
+      - name: Circuit ACIR constraint baselines
+        shell: bash
+        run: node scripts/check_circuit_constraints.mjs
+
+      - name: Run SDK Jest
+        working-directory: sdk
+        run: npm test

@@ -16,11 +16,11 @@ pub fn compute_root(
     hash_path: [Field; 20],
 ) -> Field {
     // Bit 0 = deepest level (leaf level), bit 19 = root level.
-    let index_bits: [bool; 20] = index.to_le_bits();
+    let index_bits: [u1; 20] = index.to_le_bits();
     let mut current = leaf;
 
     for i in 0..config::TREE_DEPTH {
-        let is_right = index_bits[i];
+        let is_right: bool = index_bits[i] as bool;
         let left = if is_right { hash_path[i] } else { current };
         let right = if is_right { current } else { hash_path[i] };
         current = hash::hash_pair(left, right);

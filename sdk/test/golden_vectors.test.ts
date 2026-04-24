@@ -17,9 +17,6 @@ import {
 const VECTORS_PATH = path.resolve(__dirname, 'golden/vectors.json');
 const fixture = JSON.parse(fs.readFileSync(VECTORS_PATH, 'utf8'));
 
-// Zero-address field used for relayer/fee-free withdrawals
-const ZERO_ADDRESS_FIELD = '0';
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -103,7 +100,7 @@ describe('Golden Vector Corpus', () => {
       const merkleProof = buildMerkleProof(v);
 
       const relayerAddr =
-        v.public_inputs.relayer === ZERO_ADDRESS_FIELD
+        v.public_inputs.fee === '0'
           ? 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF'
           : undefined;
 
@@ -116,6 +113,10 @@ describe('Golden Vector Corpus', () => {
       expect(witness.nullifier_hash).toBe(v.public_inputs.nullifier_hash);
       expect(witness.amount).toBe(v.public_inputs.amount);
       expect(witness.fee).toBe(v.public_inputs.fee);
+      if (v.public_inputs.fee === '0') {
+        expect(witness.relayer).toBe(v.public_inputs.relayer);
+        expect(witness.relayer).toBe('0'.repeat(64));
+      }
 
       // Private witnesses must match encoded note scalars
       expect(witness.nullifier).toBe(v.fields.nullifier);
