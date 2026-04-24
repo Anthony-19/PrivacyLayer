@@ -1,0 +1,15 @@
+{
+  "name": "withdraw",
+  "hash": "0x0",
+  "abi": {
+    "parameters": [
+      { "name": "root", "type": { "kind": "field" }, "visibility": "public" },
+      { "name": "nullifier_hash", "type": { "kind": "field" }, "visibility": "public" },
+      { "name": "recipient", "type": { "kind": "field" }, "visibility": "public" },
+      { "name": "amount", "type": { "kind": "field" }, "visibility": "public" },
+      { "name": "relayer", "type": { "kind": "field" }, "visibility": "public" },
+      { "name": "fee", "type": { "kind": "field" }, "visibility": "public" }
+    ]
+  },
+  "bytecode": "..."
+}

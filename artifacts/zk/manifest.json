@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "backend": "barretenberg",
+  "circuits": {
+    "withdraw": {
+      "path": "withdraw.json",
+      "checksum": "0x0",
+      "root_depth": 20
+    }
+  }
+}
