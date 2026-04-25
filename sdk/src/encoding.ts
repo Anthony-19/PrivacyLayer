@@ -1,9 +1,5 @@
 import { createHash } from 'crypto';
-
-// BN254 scalar field prime
-// r = 21888242871839275222246405745257275088548364400416034343698204186575808495617
-const FIELD_MODULUS =
-  21888242871839275222246405745257275088548364400416034343698204186575808495617n;
+import { FIELD_MODULUS, MERKLE_NODE_BYTE_LENGTH, NOTE_SCALAR_BYTE_LENGTH } from './zk_constants';
 
 /**
  * Convert a bigint field element to a canonical 64-character hex string (32 bytes).
@@ -58,8 +54,8 @@ export function fieldToBuffer(n: bigint, byteLength: number = 32): Buffer {
  * Note scalars are 31 bytes so they fit unconditionally within the BN254 field (< 2^248 < r).
  */
 export function noteScalarToField(buf: Buffer): string {
-  if (buf.length !== 31) {
-    throw new Error(`Note scalar must be 31 bytes, got ${buf.length}`);
+  if (buf.length !== NOTE_SCALAR_BYTE_LENGTH) {
+    throw new Error(`Note scalar must be ${NOTE_SCALAR_BYTE_LENGTH} bytes, got ${buf.length}`);
   }
   return fieldToHex(bufferToField(buf));
 }
@@ -69,8 +65,8 @@ export function noteScalarToField(buf: Buffer): string {
  * Values are reduced modulo the field prime before encoding.
  */
 export function merkleNodeToField(buf: Buffer): string {
-  if (buf.length !== 32) {
-    throw new Error(`Merkle node must be 32 bytes, got ${buf.length}`);
+  if (buf.length !== MERKLE_NODE_BYTE_LENGTH) {
+    throw new Error(`Merkle node must be ${MERKLE_NODE_BYTE_LENGTH} bytes, got ${buf.length}`);
   }
   return fieldToHex(bufferToField(buf));
 }
@@ -112,8 +108,8 @@ export function computeNullifierHash(nullifierField: string, rootField: string):
  */
 export function poolIdToField(poolId: string): string {
   const buf = Buffer.from(poolId, 'hex');
-  if (buf.length !== 32) {
-    throw new Error(`Pool ID must be 32 bytes hex, got ${buf.length}`);
+  if (buf.length !== MERKLE_NODE_BYTE_LENGTH) {
+    throw new Error(`Pool ID must be ${MERKLE_NODE_BYTE_LENGTH} bytes hex, got ${buf.length}`);
   }
   return fieldToHex(bufferToField(buf));
 }

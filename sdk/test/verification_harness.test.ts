@@ -2,15 +2,17 @@ import fs from 'fs';
 import path from 'path';
 import { Note } from '../src/note';
 import { MerkleProof, ProofGenerator, VerifyingBackend } from '../src/proof';
-import { generateWithdrawalProof, verifyWithdrawalProof, extractPublicInputs } from '../src/withdraw';
+import { verifyWithdrawalProof, extractPublicInputs } from '../src/withdraw';
 
 class MockVerifyingBackend implements VerifyingBackend {
+  constructor(private readonly expectedPublicInputs: string[]) {}
+
   async verifyProof(proof: Uint8Array, publicInputs: string[], artifacts: any): Promise<boolean> {
-    // Basic mock logic: 
-    // - Valid if proof[0] is 0xab
-    // - Invalid if publicInputs contain 'TAMPERED'
     if (proof[0] !== 0xab) return false;
-    if (publicInputs.some(input => input === 'TAMPERED')) return false;
+    if (publicInputs.length !== this.expectedPublicInputs.length) return false;
+    for (let i = 0; i < publicInputs.length; i++) {
+      if (publicInputs[i] !== this.expectedPublicInputs[i]) return false;
+    }
     return true;
   }
 }
@@ -29,46 +31,36 @@ describe('Verification Harness', () => {
   });
 
   it('should verify a valid proof successfully', async () => {
-    const backend = new MockVerifyingBackend();
-    
-    // Create a dummy proof that matches our mock's "valid" criteria
     const proof = new Uint8Array(64).fill(0xab);
-    
-    // Prepare dummy public inputs
-    const publicInputs = [
-      '0xroot',
-      '0xnullifier',
-      '0xrecipient',
-      '100',
-      '0xrelayer',
-      '0'
-    ];
-
+    const publicInputs = ['pool', 'root', 'nullifier_hash', 'recipient', '100', 'relayer', '0'];
+    const backend = new MockVerifyingBackend(publicInputs);
     const isValid = await verifyWithdrawalProof(proof, publicInputs, withdrawArtifact, backend);
     expect(isValid).toBe(true);
   });
 
   it('should fail verification for tampered proof bytes', async () => {
-    const backend = new MockVerifyingBackend();
-    
-    // Tampered proof (wrong first byte)
+    const publicInputs = ['pool', 'root', 'nullifier_hash', 'recipient', '100', 'relayer', '0'];
+    const backend = new MockVerifyingBackend(publicInputs);
     const proof = new Uint8Array(64).fill(0xff);
-    
-    const publicInputs = ['0xroot', '0xnullifier', '0xrecipient', '100', '0xrelayer', '0'];
-
     const isValid = await verifyWithdrawalProof(proof, publicInputs, withdrawArtifact, backend);
     expect(isValid).toBe(false);
   });
 
-  it('should fail verification for tampered public inputs', async () => {
-    const backend = new MockVerifyingBackend();
-    
+  it.each([
+    ['pool_id', 0],
+    ['root', 1],
+    ['nullifier_hash', 2],
+    ['recipient', 3],
+    ['amount', 4],
+    ['relayer', 5],
+    ['fee', 6],
+  ])('should fail verification when %s is tampered', async (_label: string, idx: number) => {
     const proof = new Uint8Array(64).fill(0xab);
-    
-    // Tampered public inputs
-    const publicInputs = ['TAMPERED', '0xnullifier', '0xrecipient', '100', '0xrelayer', '0'];
-
-    const isValid = await verifyWithdrawalProof(proof, publicInputs, withdrawArtifact, backend);
+    const good = ['pool', 'root', 'nullifier_hash', 'recipient', '100', 'relayer', '0'];
+    const backend = new MockVerifyingBackend(good);
+    const tampered = good.slice();
+    tampered[idx] = tampered[idx] + '_tampered';
+    const isValid = await verifyWithdrawalProof(proof, tampered, withdrawArtifact, backend);
     expect(isValid).toBe(false);
   });
 
@@ -94,8 +86,9 @@ describe('Verification Harness', () => {
     );
     const publicInputs = extractPublicInputs(witness);
     
-    expect(publicInputs).toHaveLength(6);
-    expect(publicInputs[0]).toBe(witness.root);
-    expect(publicInputs[2]).toBe(witness.recipient);
+    expect(publicInputs).toHaveLength(7);
+    expect(publicInputs[0]).toBe(witness.pool_id);
+    expect(publicInputs[1]).toBe(witness.root);
+    expect(publicInputs[3]).toBe(witness.recipient);
   });
 });

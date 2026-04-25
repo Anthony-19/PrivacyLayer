@@ -1,4 +1,11 @@
 import { stableHash32 } from './stable';
+import { createHash } from 'crypto';
+import {
+  NOTE_BACKUP_PAYLOAD_LENGTH,
+  NOTE_BACKUP_PREFIX,
+  NOTE_BACKUP_VERSION,
+  NOTE_SCALAR_BYTE_LENGTH,
+} from './zk_constants';
 
 type CryptoLike = {
   getRandomValues<T extends ArrayBufferView | null>(array: T): T;
@@ -12,6 +19,14 @@ export interface RuntimeRandomnessSourceOptions {
   runtime?: { crypto?: CryptoLike };
   enableNodeFallback?: boolean;
 }
+
+// Payload layout (107 bytes):
+//   version    1 byte
+//   nullifier 31 bytes
+//   secret    31 bytes
+//   poolId    32 bytes
+//   amount     8 bytes  (BigUInt64BE)
+//   checksum   4 bytes  (first 4 bytes of SHA-256 over all preceding bytes)
 
 function resolveRuntimeCrypto(options: RuntimeRandomnessSourceOptions = {}): CryptoLike {
   const runtime = options.runtime ?? (globalThis as RuntimeRandomnessSourceOptions['runtime']);
@@ -66,6 +81,13 @@ export function resetDefaultRandomnessSource(): void {
   defaultRandomnessSource = new RuntimeRandomnessSource();
 }
 
+export class NoteBackupError extends Error {
+  constructor(message: string, public readonly code: string) {
+    super(message);
+    this.name = 'NoteBackupError';
+  }
+}
+
 /**
  * PrivacyLayer Note
  *
@@ -80,8 +102,8 @@ export class Note {
     public readonly poolId: string,
     public readonly amount: bigint
   ) {
-    if (nullifier.length !== 31 || secret.length !== 31) {
-      throw new Error('Nullifier and secret must be 31 bytes to fit BN254 field');
+    if (nullifier.length !== NOTE_SCALAR_BYTE_LENGTH || secret.length !== NOTE_SCALAR_BYTE_LENGTH) {
+      throw new Error(`Nullifier and secret must be ${NOTE_SCALAR_BYTE_LENGTH} bytes to fit BN254 field`);
     }
   }
 
@@ -90,8 +112,8 @@ export class Note {
    */
   static generate(poolId: string, amount: bigint, randomnessSource: RandomnessSource = defaultRandomnessSource): Note {
     return new Note(
-      Buffer.from(randomnessSource.randomBytes(31)),
-      Buffer.from(randomnessSource.randomBytes(31)),
+      Buffer.from(randomnessSource.randomBytes(NOTE_SCALAR_BYTE_LENGTH)),
+      Buffer.from(randomnessSource.randomBytes(NOTE_SCALAR_BYTE_LENGTH)),
       poolId,
       amount
     );
@@ -103,8 +125,8 @@ export class Note {
    */
   static deriveDeterministic(seed: Uint8Array | Buffer | string, poolId: string, amount: bigint): Note {
     const seedBytes = typeof seed === 'string' ? Buffer.from(seed, 'utf8') : Buffer.from(seed);
-    const nullifier = stableHash32('note-nullifier', seedBytes, poolId, amount).subarray(0, 31);
-    const secret = stableHash32('note-secret', seedBytes, poolId, amount).subarray(0, 31);
+    const nullifier = stableHash32('note-nullifier', seedBytes, poolId, amount).subarray(0, NOTE_SCALAR_BYTE_LENGTH);
+    const secret = stableHash32('note-secret', seedBytes, poolId, amount).subarray(0, NOTE_SCALAR_BYTE_LENGTH);
     return new Note(Buffer.from(nullifier), Buffer.from(secret), poolId, amount);
   }
 
@@ -118,6 +140,42 @@ export class Note {
     return stableHash32('commitment', this.nullifier, this.secret);
   }
 
+  // ---------------------------------------------------------------------------
+  // Backup API (stable, versioned, integrity-checked)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Export this note as a portable backup string.
+   *
+   * Format: `privacylayer-note:<hex>`
+   * Payload (107 bytes):
+   *   [0]      version byte (0x01)
+   *   [1..31]  nullifier (31 bytes)
+   *   [32..62] secret    (31 bytes)
+   *   [63..94] poolId    (32 bytes, decoded from hex)
+   *   [95..102] amount   (8 bytes, BigUInt64BE)
+   *   [103..106] SHA-256 checksum over bytes [0..102] (first 4 bytes)
+   */
+  exportBackup(): string {
+    const payload = Buffer.alloc(NOTE_BACKUP_PAYLOAD_LENGTH);
+    let offset = 0;
+
+    payload[offset++] = NOTE_BACKUP_VERSION;
+    this.nullifier.copy(payload, offset);
+    offset += NOTE_SCALAR_BYTE_LENGTH;
+    this.secret.copy(payload, offset);
+    offset += NOTE_SCALAR_BYTE_LENGTH;
+    Buffer.from(this.poolId, 'hex').copy(payload, offset);
+    offset += 32;
+    payload.writeBigUInt64BE(this.amount, offset);
+    offset += 8;
+
+    const checksum = createHash('sha256').update(payload.subarray(0, offset)).digest();
+    checksum.copy(payload, offset, 0, 4);
+
+    return NOTE_BACKUP_PREFIX + payload.toString('hex');
+  }
+
   /**
    * Import a note from a backup string produced by `exportBackup`.
    *
@@ -129,14 +187,14 @@ export class Note {
    * - `CORRUPT_DATA`     — the hex payload could not be parsed
    */
   static importBackup(backup: string): Note {
-    if (!backup.startsWith(BACKUP_PREFIX)) {
+    if (!backup.startsWith(NOTE_BACKUP_PREFIX)) {
       throw new NoteBackupError(
-        `Note backup must start with "${BACKUP_PREFIX}"`,
+        `Note backup must start with "${NOTE_BACKUP_PREFIX}"`,
         'INVALID_PREFIX'
       );
     }
 
-    const hex = backup.slice(BACKUP_PREFIX.length);
+    const hex = backup.slice(NOTE_BACKUP_PREFIX.length);
     let payload: Buffer;
     try {
       payload = Buffer.from(hex, 'hex');
@@ -144,17 +202,17 @@ export class Note {
       throw new NoteBackupError('Note backup contains invalid hex data', 'CORRUPT_DATA');
     }
 
-    if (payload.length !== BACKUP_PAYLOAD_LENGTH) {
+    if (payload.length !== NOTE_BACKUP_PAYLOAD_LENGTH) {
       throw new NoteBackupError(
-        `Note backup payload must be ${BACKUP_PAYLOAD_LENGTH} bytes, got ${payload.length}`,
+        `Note backup payload must be ${NOTE_BACKUP_PAYLOAD_LENGTH} bytes, got ${payload.length}`,
         'INVALID_LENGTH'
       );
     }
 
     const version = payload[0];
-    if (version !== BACKUP_VERSION) {
+    if (version !== NOTE_BACKUP_VERSION) {
       throw new NoteBackupError(
-        `Unsupported note backup version: ${version} (expected ${BACKUP_VERSION})`,
+        `Unsupported note backup version: ${version} (expected ${NOTE_BACKUP_VERSION})`,
         'INVALID_VERSION'
       );
     }

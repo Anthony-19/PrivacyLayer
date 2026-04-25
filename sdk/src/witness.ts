@@ -1,13 +1,14 @@
 import { StrKey } from '@stellar/stellar-base';
-import { computeNullifierHash, fieldToHex, hexToField } from './encoding';
+import { computeNullifierHash, hexToField } from './encoding';
 import type { PreparedWitness } from './proof';
 import { MERKLE_MAX_LEAF_INDEX, MERKLE_TREE_DEPTH } from './merkle';
 import { WitnessValidationError } from './errors';
+import { GROTH16_PROOF_BYTE_LENGTH as ZK_GROTH16_PROOF_BYTE_LENGTH, ZERO_FIELD_HEX } from './zk_constants';
 
 const FIELD_HEX = /^[0-9a-fA-F]{64}$/;
 
 /** On-chain and SDK expectation for a Groth16 proof payload (A || B || C) for the withdrawal circuit. */
-export const GROTH16_PROOF_BYTE_LENGTH = 256;
+export const GROTH16_PROOF_BYTE_LENGTH = ZK_GROTH16_PROOF_BYTE_LENGTH;
 
 function assertFieldHexString(value: string, publicName: string): void {
   if (typeof value !== 'string' || !FIELD_HEX.test(value)) {
@@ -45,8 +46,6 @@ function assertAmountFeeDecimal(amountStr: string, feeStr: string, amountLabel: 
   }
   return { amount, fee };
 }
-
-const ZERO_FIELD_HEX = fieldToHex(0n);
 
 /**
  * Validates a Stellar G-strkey (Ed25519 account) before it is hashed into a field.

@@ -1,5 +1,10 @@
-import { MerkleProof } from './proof';
+import type { MerkleProof } from './proof';
 import { normalizeHex, stableHash32 } from './stable';
+import { WitnessValidationError } from './errors';
+import { FIELD_MODULUS, MERKLE_NODE_BYTE_LENGTH, MERKLE_TREE_DEPTH } from './zk_constants';
+
+export { MERKLE_TREE_DEPTH };
+export const MERKLE_MAX_LEAF_INDEX = (1 << MERKLE_TREE_DEPTH) - 1;
 
 export type CommitmentLike = Buffer | Uint8Array | string;
 
@@ -10,12 +15,6 @@ export interface MerkleCheckpoint {
   root: string;
   frontier: Array<string | null>;
   leaves?: string[];
-}
-
-export interface BatchSyncResult {
-  insertedLeafIndices: number[];
-  checkpoint: MerkleCheckpoint;
-  root: Buffer;
 }
 
 function toLeaf(commitment: CommitmentLike): Buffer {
@@ -31,6 +30,44 @@ function toLeaf(commitment: CommitmentLike): Buffer {
   }
 
   return stableHash32('leaf-text', commitment);
+}
+
+/**
+ * Validate the Merkle proof object before it is encoded for the prover.
+ * Catches truncated / overlong paths and invalid index range early.
+ */
+export function validateMerkleProof(merkleProof: MerkleProof, depth: number = MERKLE_TREE_DEPTH): void {
+  if (merkleProof.root.length !== MERKLE_NODE_BYTE_LENGTH) {
+    throw new WitnessValidationError(
+      `Merkle root must be ${MERKLE_NODE_BYTE_LENGTH} bytes, got ${merkleProof.root.length}`,
+      'MERKLE_PATH',
+      'structure'
+    );
+  }
+  if (merkleProof.root.every((b: number) => b === 0)) {
+    throw new WitnessValidationError('Merkle root must be non-zero', 'MERKLE_ROOT', 'domain');
+  }
+  const rootN = BigInt('0x' + merkleProof.root.toString('hex'));
+  if (rootN >= FIELD_MODULUS) {
+    throw new WitnessValidationError('Merkle root must be a canonical field encoding', 'MERKLE_ROOT', 'domain');
+  }
+  if (merkleProof.pathElements.length !== depth) {
+    throw new WitnessValidationError(
+      `Merkle path must have ${depth} elements, got ${merkleProof.pathElements.length}`,
+      'MERKLE_PATH',
+      'structure'
+    );
+  }
+  for (let i = 0; i < merkleProof.pathElements.length; i++) {
+    const el = merkleProof.pathElements[i];
+    if (el.length !== MERKLE_NODE_BYTE_LENGTH) {
+      throw new WitnessValidationError(
+        `Merkle path element at index ${i} must be ${MERKLE_NODE_BYTE_LENGTH} bytes, got ${el.length}`,
+        'MERKLE_PATH',
+        'structure'
+      );
+    }
+  }
 }
 
 export class LocalMerkleTree {

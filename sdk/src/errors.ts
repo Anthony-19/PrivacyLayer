@@ -8,6 +8,7 @@ export class WitnessValidationError extends Error {
     message: string,
     public readonly code:
       | 'MERKLE_PATH'
+      | 'MERKLE_ROOT'
       | 'LEAF_INDEX'
       | 'FIELD_ENCODING'
       | 'ADDRESS'
