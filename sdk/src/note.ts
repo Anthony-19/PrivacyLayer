@@ -75,9 +75,14 @@ export class Note {
    * Preimage: [nullifier, secret, poolId]
    */
   getCommitment(): Buffer {
-    // Placeholder: In production, use @noir-lang/barretenberg or similar
-    // for Poseidon(nullifier, secret, poolId)
-    return Buffer.alloc(32);
+    // Structural stand-in for Poseidon(nullifier, secret, poolId)
+    // In production, use @noir-lang/barretenberg for the real BN254 Poseidon.
+    const input = Buffer.concat([
+      this.nullifier,
+      this.secret,
+      Buffer.from(this.poolId, 'hex'),
+    ]);
+    return createHash('sha256').update(input).digest();
   }
 
   // ---------------------------------------------------------------------------
