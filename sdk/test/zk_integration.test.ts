@@ -1,3 +1,4 @@
+/// <reference types="jest" />
 import { createDeposit } from '../src/deposit';
 import { LocalMerkleTree } from '../src/merkle';
 import { Note } from '../src/note';

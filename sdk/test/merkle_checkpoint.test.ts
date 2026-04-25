@@ -1,3 +1,4 @@
+/// <reference types="jest" />
 import { LocalMerkleTree } from '../src/merkle';
 import { stableHash32 } from '../src/stable';
 import { restoreWithdrawalTree, syncWithdrawalTree } from '../src/withdraw';

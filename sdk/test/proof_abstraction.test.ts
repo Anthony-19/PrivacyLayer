@@ -1,3 +1,4 @@
+/// <reference types="jest" />
 import { Note } from '../src/note';
 import { MerkleProof, ProvingBackend } from '../src/proof';
 import { generateWithdrawalProof } from '../src/withdraw';

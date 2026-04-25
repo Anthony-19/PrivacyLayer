@@ -1,3 +1,4 @@
+/// <reference types="jest" />
 import fs from 'fs';
 import path from 'path';
 import { Note, NoteBackupError } from '../src/note';

@@ -1,3 +1,4 @@
+/// <reference types="jest" />
 import { Note } from '../src/note';
 import { MerkleProof, ProofGenerator } from '../src/proof';
 import { WitnessValidationError } from '../src/errors';
