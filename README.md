@@ -54,7 +54,7 @@ User                   PrivacyLayer SDK               Soroban Contract
 
 | Step | Operation | Protocol 25 Primitive |
 |------|-----------|----------------------|
-| Deposit | `commitment = Poseidon(nullifier ∥ secret)` | `poseidon2_hash` host fn |
+| Deposit | `commitment = Poseidon(nullifier ∥ secret ∥ poolId)` | `poseidon2_hash` host fn |
 | Store | Insert commitment into on-chain Merkle tree | Soroban storage |
 | Withdraw (prove) | ZK proof: know preimage of a commitment in the tree | Noir circuit (BN254) |
 | Withdraw (verify) | Groth16 pairing check on-chain | `bn254_pairing` host fn |

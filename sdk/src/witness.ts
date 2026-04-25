@@ -1,0 +1,138 @@
+import { StrKey } from '@stellar/stellar-base';
+import { computeNullifierHash, fieldToHex, hexToField } from './encoding';
+import type { PreparedWitness } from './proof';
+import { MERKLE_MAX_LEAF_INDEX, MERKLE_TREE_DEPTH } from './merkle';
+import { WitnessValidationError } from './errors';
+
+const FIELD_HEX = /^[0-9a-fA-F]{64}$/;
+
+/** On-chain and SDK expectation for a Groth16 proof payload (A || B || C) for the withdrawal circuit. */
+export const GROTH16_PROOF_BYTE_LENGTH = 256;
+
+function assertFieldHexString(value: string, publicName: string): void {
+  if (typeof value !== 'string' || !FIELD_HEX.test(value)) {
+    throw new WitnessValidationError(
+      `${publicName} must be a 64-digit hex string (32-byte field)`,
+      'FIELD_ENCODING',
+      'structure'
+    );
+  }
+  try {
+    hexToField(value);
+  } catch (e) {
+    throw new WitnessValidationError(
+      `${publicName} is not a valid field encoding: ${(e as Error).message}`,
+      'FIELD_ENCODING',
+      'structure'
+    );
+  }
+}
+
+function assertAmountFeeDecimal(amountStr: string, feeStr: string, amountLabel: string, feeLabel: string): { amount: bigint; fee: bigint } {
+  if (typeof amountStr !== 'string' || !/^\d+$/.test(amountStr)) {
+    throw new WitnessValidationError(`${amountLabel} must be a non-negative decimal string`, 'FIELD_ENCODING', 'structure');
+  }
+  if (typeof feeStr !== 'string' || !/^\d+$/.test(feeStr)) {
+    throw new WitnessValidationError(`${feeLabel} must be a non-negative decimal string`, 'FIELD_ENCODING', 'structure');
+  }
+  const amount = BigInt(amountStr);
+  const fee = BigInt(feeStr);
+  if (fee > amount) {
+    throw new WitnessValidationError('fee cannot exceed amount', 'WITNESS_SEMANTICS', 'domain');
+  }
+  if (amount < 0n) {
+    throw new WitnessValidationError('amount must be non-negative', 'WITNESS_SEMANTICS', 'domain');
+  }
+  return { amount, fee };
+}
+
+const ZERO_FIELD_HEX = fieldToHex(0n);
+
+/**
+ * Validates a Stellar G-strkey (Ed25519 account) before it is hashed into a field.
+ */
+export function assertValidStellarAccountId(address: string, label: string = 'address'): void {
+  if (address.length === 0) {
+    throw new WitnessValidationError(`${label} must be non-empty`, 'ADDRESS', 'structure');
+  }
+  if (!StrKey.isValidEd25519PublicKey(address)) {
+    throw new WitnessValidationError(`${label} is not a valid Stellar Ed25519 strkey`, 'ADDRESS', 'structure');
+  }
+}
+
+/**
+ * Verifies a prepared witness object for structural safety and protocol consistency
+ * (nullifier hash binding, fee / relayer rules) before a proving backend is invoked.
+ */
+export function assertValidPreparedWithdrawalWitness(witness: PreparedWitness): void {
+  assertFieldHexString(witness.nullifier, 'nullifier');
+  assertFieldHexString(witness.secret, 'secret');
+  assertFieldHexString(witness.root, 'root');
+  assertFieldHexString(witness.nullifier_hash, 'nullifier_hash');
+  assertFieldHexString(witness.recipient, 'recipient');
+  assertFieldHexString(witness.relayer, 'relayer');
+
+  if (typeof witness.leaf_index !== 'string' || !/^\d+$/.test(witness.leaf_index)) {
+    throw new WitnessValidationError('leaf_index must be a non-negative integer string', 'LEAF_INDEX', 'structure');
+  }
+  const leafIdx = Number(witness.leaf_index);
+  if (!Number.isInteger(leafIdx) || leafIdx < 0) {
+    throw new WitnessValidationError('leaf_index must be a non-negative integer', 'LEAF_INDEX', 'structure');
+  }
+  if (leafIdx > MERKLE_MAX_LEAF_INDEX) {
+    throw new WitnessValidationError(
+      `leafIndex out of range for tree depth (max ${MERKLE_MAX_LEAF_INDEX})`,
+      'LEAF_INDEX',
+      'domain'
+    );
+  }
+
+  if (!Array.isArray(witness.hash_path) || witness.hash_path.length !== MERKLE_TREE_DEPTH) {
+    throw new WitnessValidationError(
+      `hash_path must be an array of length ${MERKLE_TREE_DEPTH}`,
+      'MERKLE_PATH',
+      'structure'
+    );
+  }
+  for (let i = 0; i < witness.hash_path.length; i++) {
+    assertFieldHexString(witness.hash_path[i]!, `hash_path[${i}]`);
+  }
+
+  const { fee } = assertAmountFeeDecimal(witness.amount, witness.fee, 'amount', 'fee');
+  if (fee === 0n && witness.relayer !== ZERO_FIELD_HEX) {
+    throw new WitnessValidationError(
+      'relayer must be the zero field when fee is zero (matches on-chain / circuit rules)',
+      'WITNESS_SEMANTICS',
+      'domain'
+    );
+  }
+  if (fee > 0n && witness.relayer === ZERO_FIELD_HEX) {
+    throw new WitnessValidationError(
+      'relayer must be non-zero in the field when fee is non-zero',
+      'WITNESS_SEMANTICS',
+      'domain'
+    );
+  }
+
+  const expectNh = computeNullifierHash(witness.nullifier, witness.root);
+  if (expectNh !== witness.nullifier_hash) {
+    throw new WitnessValidationError(
+      'nullifier_hash is inconsistent with (nullifier, root); possible cross-pool or replay issue',
+      'WITNESS_SEMANTICS',
+      'domain'
+    );
+  }
+}
+
+/**
+ * Fails on malformed **formatted** raw proof bytes before the verifier runs.
+ */
+export function assertValidGroth16ProofBytes(proof: Uint8Array, label: string = 'proof'): void {
+  if (proof.length !== GROTH16_PROOF_BYTE_LENGTH) {
+    throw new WitnessValidationError(
+      `${label} must be ${GROTH16_PROOF_BYTE_LENGTH} bytes, got ${proof.length}`,
+      'PROOF_FORMAT',
+      'structure'
+    );
+  }
+}

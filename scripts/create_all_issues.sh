@@ -1,6 +1,5 @@
 #!/bin/bash
-# Creates all GitHub issues from markdown files
-set -e
+set -euo pipefail
 
 echo "Creating all GitHub issues..."
 
