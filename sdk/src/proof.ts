@@ -1,5 +1,29 @@
 import { Note } from './note';
 import { normalizeHex, stableHash32 } from './stable';
+import { assertValidGroth16ProofBytes, assertValidPreparedWithdrawalWitness } from './witness';
+import { STELLAR_ZERO_ACCOUNT } from './zk_constants';
+
+export type ProvingErrorCode =
+  | 'ARTIFACT_ERROR'
+  | 'WITNESS_ERROR'
+  | 'BACKEND_ERROR'
+  | 'FORMATTING_ERROR';
+
+/**
+ * ProvingError
+ *
+ * A stable error model for proof generation failures.
+ */
+export class ProvingError extends Error {
+  constructor(
+    message: string,
+    public readonly code: ProvingErrorCode,
+    public readonly cause?: any
+  ) {
+    super(message);
+    this.name = 'ProvingError';
+  }
+}
 
 export interface MerkleProof {
   root: Buffer;
@@ -173,7 +197,7 @@ export class ProofGenerator {
     note: Note,
     merkleProof: MerkleProof,
     recipient: string,
-    relayer: string = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+    relayer: string = STELLAR_ZERO_ACCOUNT,
     fee: bigint = 0n
   ): Promise<WithdrawalWitness> {
     const rootHex = merkleProof.root.toString('hex');
@@ -191,16 +215,8 @@ export class ProofGenerator {
       secret: note.secret.toString('hex'),
       leaf_index: merkleProof.leafIndex.toString(),
       path_elements: merkleProof.pathElements.map((e) => e.toString('hex')),
-      path_indices: merkleProof.pathIndices.map((i) => i.toString())
+      path_indices: merkleProof.pathIndices?.map((i) => i.toString()) ?? []
     };
-
-    try {
-      assertValidPreparedWithdrawalWitness(witness);
-    } catch (e: any) {
-      throw new ProvingError(`Inconsistent witness generated: ${e.message}`, 'WITNESS_ERROR', e);
-    }
-
-    return witness;
   }
 
   /**
