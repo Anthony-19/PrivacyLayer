@@ -107,12 +107,25 @@ export function computeNullifierHash(nullifierField: string, rootField: string):
 }
 
 /**
- * Pack the six public inputs of the withdrawal circuit in the canonical order
+ * Encode a 32-byte pool identifier (hex string) as a circuit field hex string.
+ * Values are reduced modulo the field prime.
+ */
+export function poolIdToField(poolId: string): string {
+  const buf = Buffer.from(poolId, 'hex');
+  if (buf.length !== 32) {
+    throw new Error(`Pool ID must be 32 bytes hex, got ${buf.length}`);
+  }
+  return fieldToHex(bufferToField(buf));
+}
+
+/**
+ * Pack the public inputs of the withdrawal circuit in the canonical order
  * defined by circuits/withdraw/src/main.nr:
  *
- *   root | nullifier_hash | recipient | amount | relayer | fee
+ *   poolId | root | nullifier_hash | recipient | amount | relayer | fee
  */
 export function packWithdrawalPublicInputs(
+  poolId: string,
   root: string,
   nullifierHash: string,
   recipient: string,
@@ -120,5 +133,5 @@ export function packWithdrawalPublicInputs(
   relayer: string,
   fee: bigint
 ): string[] {
-  return [root, nullifierHash, recipient, amount.toString(), relayer, fee.toString()];
+  return [poolId, root, nullifierHash, recipient, amount.toString(), relayer, fee.toString()];
 }

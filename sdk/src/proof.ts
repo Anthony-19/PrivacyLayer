@@ -4,10 +4,33 @@ import {
   fieldToHex,
   merkleNodeToField,
   noteScalarToField,
+  poolIdToField,
   stellarAddressToField,
 } from './encoding';
 import { validateMerkleProof } from './merkle';
 import { assertValidGroth16ProofBytes, assertValidPreparedWithdrawalWitness, assertValidStellarAccountId } from './witness';
+
+export type ProvingErrorCode =
+  | 'ARTIFACT_ERROR'
+  | 'WITNESS_ERROR'
+  | 'BACKEND_ERROR'
+  | 'FORMATTING_ERROR';
+
+/**
+ * ProvingError
+ *
+ * A stable error model for proof generation failures.
+ */
+export class ProvingError extends Error {
+  constructor(
+    message: string,
+    public readonly code: ProvingErrorCode,
+    public readonly cause?: any
+  ) {
+    super(message);
+    this.name = 'ProvingError';
+  }
+}
 
 export interface MerkleProof {
   root: Buffer;
@@ -67,6 +90,7 @@ export interface PreparedWitness {
   leaf_index: string;
   hash_path: string[];
   // Public inputs
+  pool_id: string;
   root: string;
   nullifier_hash: string;
   recipient: string;
@@ -100,12 +124,22 @@ export class ProofGenerator {
    */
   async generate(witness: any): Promise<Uint8Array> {
     if (!this.backend) {
-      throw new Error(
-        'Proving backend not configured. Please provide a backend to the ProofGenerator.'
+      throw new ProvingError(
+        'Proving backend not configured. Please provide a backend to the ProofGenerator.',
+        'BACKEND_ERROR'
       );
     }
-    assertValidPreparedWithdrawalWitness(witness);
-    return this.backend.generateProof(witness);
+    try {
+      assertValidPreparedWithdrawalWitness(witness);
+    } catch (e: any) {
+      throw new ProvingError(`Invalid witness: ${e.message}`, 'WITNESS_ERROR', e);
+    }
+
+    try {
+      return await this.backend.generateProof(witness);
+    } catch (e: any) {
+      throw new ProvingError(`Backend proof generation failed: ${e.message}`, 'BACKEND_ERROR', e);
+    }
   }
 
   /**
@@ -127,13 +161,19 @@ export class ProofGenerator {
     relayer: string = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
     fee: bigint = 0n
   ): Promise<PreparedWitness> {
-    validateMerkleProof(merkleProof);
-    assertValidStellarAccountId(recipient, 'recipient');
-    if (fee > 0n) {
-      assertValidStellarAccountId(relayer, 'relayer');
+    try {
+      validateMerkleProof(merkleProof);
+      assertValidStellarAccountId(recipient, 'recipient');
+      if (fee > 0n) {
+        assertValidStellarAccountId(relayer, 'relayer');
+      }
+    } catch (e: any) {
+      throw new ProvingError(`Formatting error during witness prep: ${e.message}`, 'FORMATTING_ERROR', e);
     }
+
     const nullifierField = noteScalarToField(note.nullifier);
     const secretField = noteScalarToField(note.secret);
+    const poolIdField = poolIdToField(note.poolId);
     const rootField = merkleNodeToField(merkleProof.root);
     const nullifierHash = computeNullifierHash(nullifierField, rootField);
     const recipientField = stellarAddressToField(recipient);
@@ -146,6 +186,7 @@ export class ProofGenerator {
       leaf_index: merkleProof.leafIndex.toString(),
       hash_path: merkleProof.pathElements.map(merkleNodeToField),
       // Public inputs
+      pool_id: poolIdField,
       root: rootField,
       nullifier_hash: nullifierHash,
       recipient: recipientField,
@@ -153,7 +194,13 @@ export class ProofGenerator {
       relayer: relayerField,
       fee: fee.toString(),
     };
-    assertValidPreparedWithdrawalWitness(witness);
+
+    try {
+      assertValidPreparedWithdrawalWitness(witness);
+    } catch (e: any) {
+      throw new ProvingError(`Inconsistent witness generated: ${e.message}`, 'WITNESS_ERROR', e);
+    }
+
     return witness;
   }
 
@@ -163,7 +210,11 @@ export class ProofGenerator {
    */
   static formatProof(rawProof: Uint8Array): Buffer {
     // Soroban contract expects Proof struct: { a: BytesN<64>, b: BytesN<128>, c: BytesN<64> }
-    assertValidGroth16ProofBytes(rawProof, 'rawProof');
+    try {
+      assertValidGroth16ProofBytes(rawProof, 'rawProof');
+    } catch (e: any) {
+      throw new ProvingError(`Invalid proof format from backend: ${e.message}`, 'FORMATTING_ERROR', e);
+    }
     return Buffer.from(rawProof);
   }
 }

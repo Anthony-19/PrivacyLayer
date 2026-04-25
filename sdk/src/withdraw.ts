@@ -55,13 +55,15 @@ export async function generateWithdrawalProof(
  */
 export function extractPublicInputs(witness: any): string[] {
   // Ordered according to circuits/withdraw/src/main.nr:
-  // 1. root
-  // 2. nullifier_hash
-  // 3. recipient
-  // 4. amount
-  // 5. relayer
-  // 6. fee
+  // 1. pool_id
+  // 2. root
+  // 3. nullifier_hash
+  // 4. recipient
+  // 5. amount
+  // 6. relayer
+  // 7. fee
   return [
+    witness.pool_id,
     witness.root,
     witness.nullifier_hash,
     witness.recipient,
