@@ -8,6 +8,13 @@ export const GROTH16_PROOF_BYTE_LENGTH = 256;
 
 export const ZERO_FIELD_HEX = '0'.repeat(64);
 
+/**
+ * Canonical Stellar zero-account strkey used as the default relayer when no
+ * relayer is configured. The matching field representation is `ZERO_FIELD_HEX`.
+ */
+export const STELLAR_ZERO_ACCOUNT =
+  'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
+
 // BN254 scalar field prime
 // r = 21888242871839275222246405745257275088548364400416034343698204186575808495617
 export const FIELD_MODULUS =

@@ -190,6 +190,8 @@ function canonicalizePreparedWitness(witness: PreparedWitness): PreparedWitness 
     relayer: witness.relayer,
     fee: witness.fee,
   };
+}
+
 export interface WitnessPreparationOptions {
   merkleDepth?: number;
 }

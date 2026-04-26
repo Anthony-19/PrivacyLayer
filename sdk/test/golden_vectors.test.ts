@@ -11,9 +11,8 @@ import {
   serializeWithdrawalPublicInputs,
   stellarAddressToField,
   WITHDRAWAL_PUBLIC_INPUT_SCHEMA,
-} from '../src/encoding';
-import { buildWithdrawalPublicInputLayout } from '../src/withdraw';
 } from "../src/encoding";
+import { buildWithdrawalPublicInputLayout } from "../src/withdraw";
 
 // ---------------------------------------------------------------------------
 // Load golden fixture
@@ -367,7 +366,6 @@ describe("Withdrawal public-input schema ordering (ZK-032)", () => {
     ].join(''));
   });
 
-  it('prepareWitness public fields align with WITHDRAWAL_PUBLIC_INPUT_SCHEMA', async () => {
   it("prepareWitness public fields align with WITHDRAWAL_PUBLIC_INPUT_SCHEMA", async () => {
     const v = fixture.vectors[0];
     const note = buildNote(v);
