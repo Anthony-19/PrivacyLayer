@@ -1,6 +1,7 @@
 export * from './backends';
 export * from './benchmark';
 export * from './encoding';
+export * from './offline_verify';
 export * from './errors';
 export * from './hash_mode';
 export * from './merkle';
