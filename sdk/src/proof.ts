@@ -339,8 +339,8 @@ export class ProofGenerator {
       recipient: recipientField,
       amount: fieldToHex(note.amount),
       relayer: relayerField,
-      fee: fee.toString(),
-      denomination: expectedDenomination.toString(),
+      fee: fieldToHex(fee),
+      denomination: fieldToHex(expectedDenomination),
     };
   }
 

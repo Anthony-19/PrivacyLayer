@@ -243,6 +243,7 @@ sdk/test/golden/vectors.json
 | TV-002 | Non-zero sibling in auth path | 7          | 1 XLM       |
 | TV-003 | Fee equals amount (boundary)  | 0          | full amount |
 | TV-004 | Sparse tree — bit 19 only     | 524288     | none        |
+| TV-005 | Realistic withdrawal          | 10         | 1000000     |
 
 ### Format
 

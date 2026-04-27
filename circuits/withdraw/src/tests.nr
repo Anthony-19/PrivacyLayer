@@ -379,3 +379,44 @@ fn test_leaf_index_high_bit_only() {
         pool_id, root, nullifier_hash, 0x9ABC, 100_0000000, 0, 0,
     );
 }
+
+#[test]
+#[test]
+fn test_withdrawal_realistic_fixtures() {
+    // TV-005: Realistic withdrawal with deep non-zero siblings and non-zero leaf index
+    let path: [Field; 20] = [
+        0x2d875e0f4eb9cd0c152967aa1509d796cf5e20864c73f1d0ad9d0388ceadb56e,
+        0x1e750f716d8f3dc24bcec58913844c1a38b60bdc940852d7e6b0bacce48a3aaa,
+        0x238730206efa133518034bc6ef5ea503cab13bef5b77c1812b857e4dae462283,
+        0x19c42485250d97981789bab3d71bc2e61befa1c12a0e7664b3997b2f255235c2,
+        0x0722b37ef2d0564ce4247f5a01cb5fb95e3610acf8a81192e567378918fbda8d,
+        0x1aa2078a57e8042beaa7da8c8cfc602db4641776420205d7e6dc32c89f558269,
+        0x10fa1396affbc20fba5d482897060cf1a2157002ec160a2bf26c7fa4c515ad3d,
+        0x00ad0163e1abd8cae635d823ecd5158b885bc7445ce8378195ecbdac89584704,
+        0x2a10d87065c6586c7fb1896b2282ec27937fbff1fd22ea587a568c2ce58175cb,
+        0x0106b7e2efc5bda07747b13ebc155a5cefcd9478819f096e5f7885d4757b6299,
+        0x05d5453bea2ea3a5544a67825af531cc4ccbaac19739567ab30c58601fa0f084,
+        0x050a8ef92fe1bd6c1f2a1cbbed22356edd0e74991fd8840883e2c4bccd95e763,
+        0x0c46ae9447fed0da75259d0c5ad08313b04a7e03ea8dbc40fa93dfe50fbb35fc,
+        0x08c84fec7ab4933b316a05745682b9439ec6f68c570688a16bd05b0cd0f73d7c,
+        0x20ce7dd8ec30e7c3ca13d9a3da8a4cbf2fcc0509c61f696166b37a94c60812d3,
+        0x1e1cefc0f0bec95bd91df31b5e169b671ba4ef517cd8ca69414181cd13135aab,
+        0x05b6a93f4259c6a9b812919e641ea7582519a4b60443029e24399a7c7925b3c0,
+        0x19dd2952cc2bdfa8f7014a96d3701ced2c21ef081b8a2f0673728cdc8ebcb4e9,
+        0x0c3607bc4238ef735053f79c2e61c9f3c12447bc0a9856b98c16c0f4869cbdec,
+        0x11a4ba756f55e71acc9f86350bc0e989c55b49417166ce2fc61fa8d91c76125a
+    ];
+
+    execute(WithdrawalBuilder::new()
+        .with_nullifier(0x0011111111111111111111111111111111111111111111111111111111111111)
+        .with_secret(0x0022222222222222222222222222222222222222222222222222222222222222)
+        .with_pool_id(0x00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff)
+        .with_leaf_index(10)
+        .with_hash_path(path)
+        .with_root(0x07be1a8886dd8b97c93528f7e40b657e91f6891bf8a0e7347f7834e3459a5f27)
+        .with_nullifier_hash(0x2670bcddb5d53b38fcbe58ecf256e97e1026a2630f594d427034da07cb547627)
+        .with_recipient(0x0379e6ee06f99867f4a3394f241036f395c248ad93e27fd7f2674f62645c44ea)
+        .with_amount(1000000000)
+        .with_relayer(0x0457e64b8de401c599dbe00dcace8a6b8976214c957bb78c958ee1f5d88ffc8e)
+        .with_fee(1000000));
+}

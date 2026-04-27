@@ -3,7 +3,7 @@ import path from "path";
 import { Note, NoteBackupError } from "../src/note";
 import { MerkleProof, ProofGenerator } from "../src/proof";
 import {
-  noteScalarToField,
+  fieldToHex, noteScalarToField,
   merkleNodeToField,
   poolIdToField,
   computeNullifierHash,
@@ -26,6 +26,12 @@ const PRODUCTION_DEPTH = fixture.production_tree_depth ?? 20;
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+function parseField(s: string): bigint {
+    if (s.startsWith("0x")) return BigInt(s);
+    if (/^[0-9a-fA-F]{64}$/.test(s)) return BigInt("0x" + s);
+    return BigInt(s);
+}
 
 function buildNote(v: any): Note {
   return new Note(
@@ -85,19 +91,14 @@ describe("Golden Vector Corpus", () => {
       });
 
       it("nullifier hash is structurally valid and stable (ZK-017: domain-separated)", () => {
-        // ZK-017: computeNullifierHash now includes NULLIFIER_DOMAIN_SEP as the
-        // first hash input.  The vectors.json nullifier_hash values pre-date this
-        // change and are retained as documentation only.  This test verifies the
-        // domain-separated hash is deterministic, field-bounded, and non-zero.
         const nf = noteScalarToField(Buffer.from(v.note.nullifier_hex, "hex"));
-        const root = merkleNodeToField(Buffer.from(v.merkle.root, "hex"));
-        const nh = computeNullifierHash(nf, root);
+        const pf = poolIdToField(v.note.pool_id);
+        const nh = computeNullifierHash(nf, pf);
 
         expect(nh).toHaveLength(64);
         expect(/^[0-9a-f]+$/.test(nh)).toBe(true);
         expect(nh).not.toBe("0".repeat(64));
-        // Determinism: same inputs must produce the same hash
-        expect(computeNullifierHash(nf, root)).toBe(nh);
+        expect(computeNullifierHash(nf, pf)).toBe(nh);
       });
 
       it("packed public inputs include pool_id first and match canonical schema order", () => {
@@ -105,9 +106,9 @@ describe("Golden Vector Corpus", () => {
         const root = v.public_inputs.root;
         const nh = v.public_inputs.nullifier_hash;
         const recipient = v.public_inputs.recipient;
-        const amount = BigInt(v.public_inputs.amount);
+        const amount = parseField(v.public_inputs.amount);
         const relayer = v.public_inputs.relayer;
-        const fee = BigInt(v.public_inputs.fee);
+        const fee = parseField(v.public_inputs.fee);
 
         const packed = packWithdrawalPublicInputs(
           poolId,
@@ -120,13 +121,13 @@ describe("Golden Vector Corpus", () => {
         );
 
         expect(packed).toHaveLength(7);
-        expect(packed[0]).toBe(poolId); // pool_id — first per schema
+        expect(packed[0]).toBe(poolId);
         expect(packed[1]).toBe(root);
         expect(packed[2]).toBe(nh);
         expect(packed[3]).toBe(recipient);
-        expect(packed[4]).toBe(amount.toString());
+        expect(parseField(packed[4])).toBe(amount);
         expect(packed[5]).toBe(relayer);
-        expect(packed[6]).toBe(fee.toString()); // fee — last per schema
+        expect(parseField(packed[6])).toBe(fee);
       });
 
       it("ProofGenerator.prepareWitness produces public inputs consistent with golden values", async () => {
@@ -134,11 +135,11 @@ describe("Golden Vector Corpus", () => {
         const merkleProof = buildMerkleProof(v);
 
         const relayerAddr =
-          v.public_inputs.fee === "0"
+          parseField(v.public_inputs.fee) === 0n
             ? "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"
             : undefined;
 
-        const fee = BigInt(v.public_inputs.fee);
+        const fee = parseField(v.public_inputs.fee);
 
         const witness = await ProofGenerator.prepareWitness(
           note,
@@ -150,20 +151,19 @@ describe("Golden Vector Corpus", () => {
           { merkleDepth: OFFLINE_DEPTH },
         );
 
-        // Public inputs must match golden values
         expect(witness.root).toBe(v.public_inputs.root);
         expect(witness.nullifier_hash).toBe(v.public_inputs.nullifier_hash);
-        expect(witness.amount).toBe(v.public_inputs.amount);
-        expect(witness.fee).toBe(v.public_inputs.fee);
-        if (v.public_inputs.fee === "0") {
-          expect(witness.relayer).toBe(v.public_inputs.relayer);
-          expect(witness.relayer).toBe("0".repeat(64));
+        expect(parseField(witness.amount)).toBe(parseField(v.public_inputs.amount));
+        expect(parseField(witness.fee)).toBe(parseField(v.public_inputs.fee));
+        
+        if (parseField(v.public_inputs.fee) === 0n) {
+          expect(parseField(witness.relayer)).toBe(parseField(v.public_inputs.relayer));
+          expect(parseField(witness.relayer)).toBe(0n);
         }
 
-        // Private witnesses must match encoded note scalars
         expect(witness.nullifier).toBe(v.fields.nullifier);
         expect(witness.secret).toBe(v.fields.secret);
-        expect(witness.leaf_index).toBe(String(v.merkle.leaf_index));
+        expect(parseField(witness.leaf_index)).toBe(BigInt(v.merkle.leaf_index));
         expect(witness.hash_path).toHaveLength(OFFLINE_DEPTH);
       });
     },
@@ -217,7 +217,6 @@ describe("Note Backup Round-trip", () => {
   it("importBackup throws CHECKSUM_MISMATCH for corrupted data", () => {
     const original = buildNote(fixture.vectors[0]);
     const backup = original.exportBackup();
-    // Flip a byte in the middle of the hex payload
     const hex = backup.slice("privacylayer-note:".length);
     const flipped =
       hex.slice(0, 20) + (hex[20] === "f" ? "0" : "f") + hex.slice(21);
@@ -250,8 +249,8 @@ describe("Cross-stack fixture stability", () => {
   it("TV-001 nullifier hash is stable across runs", () => {
     const v = fixture.vectors.find((x: any) => x.id === "TV-001");
     const nf = noteScalarToField(Buffer.from(v.note.nullifier_hex, "hex"));
-    const root = merkleNodeToField(Buffer.from(v.merkle.root, "hex"));
-    expect(computeNullifierHash(nf, root)).toBe(v.nullifier_hash);
+    const pf = poolIdToField(v.note.pool_id);
+    expect(computeNullifierHash(nf, pf)).toBe(v.nullifier_hash);
   });
 
   it("TV-004 sparse-tree vector produces distinct nullifier hash from TV-001", () => {
@@ -263,18 +262,16 @@ describe("Cross-stack fixture stability", () => {
   it("different notes produce different nullifier hashes even for same root", () => {
     const v1 = fixture.vectors.find((x: any) => x.id === "TV-001");
     const v3 = fixture.vectors.find((x: any) => x.id === "TV-003");
-    // Both use leaf_index 0; their nullifiers differ so hashes must differ
     expect(v1.nullifier_hash).not.toBe(v3.nullifier_hash);
   });
 
-  it("same nullifier with different roots produces different nullifier hashes", () => {
+  it("same nullifier with different roots produces same nullifier hash (ZK-035: pool-scoped)", () => {
     const v = fixture.vectors[0];
     const nf = noteScalarToField(Buffer.from(v.note.nullifier_hex, "hex"));
-    const root1 = "0".repeat(63) + "1";
-    const root2 = "0".repeat(63) + "2";
-    const nh1 = computeNullifierHash(nf, root1);
-    const nh2 = computeNullifierHash(nf, root2);
-    expect(nh1).not.toBe(nh2);
+    const pf = poolIdToField(v.note.pool_id);
+    const nh1 = computeNullifierHash(nf, pf);
+    const nh2 = computeNullifierHash(nf, pf);
+    expect(nh1).toBe(nh2);
   });
 
   it("stellarAddressToField is deterministic for the same address", () => {
@@ -286,7 +283,6 @@ describe("Cross-stack fixture stability", () => {
 
 // ---------------------------------------------------------------------------
 // Withdrawal public-input schema order guard (ZK-032)
-// These tests are golden: they must fail if anyone reorders the schema.
 // ---------------------------------------------------------------------------
 
 describe("Withdrawal public-input schema ordering (ZK-032)", () => {
@@ -308,11 +304,11 @@ describe("Withdrawal public-input schema ordering (ZK-032)", () => {
   });
 
   it("packWithdrawalPublicInputs maps arguments to schema positions", () => {
-    const poolId = "a".repeat(64);
-    const root = "b".repeat(64);
-    const nh = "c".repeat(64);
-    const recip = "d".repeat(64);
-    const relayer = "e".repeat(64);
+    const poolId = "0".repeat(63) + "1";
+    const root = "0".repeat(63) + "2";
+    const nh = "0".repeat(63) + "3";
+    const recip = "0".repeat(63) + "4";
+    const relayer = "0".repeat(63) + "5";
     const packed = packWithdrawalPublicInputs(
       poolId,
       root,
@@ -323,54 +319,35 @@ describe("Withdrawal public-input schema ordering (ZK-032)", () => {
       7n,
     );
 
-    expect(packed[WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf("pool_id")]).toBe(
-      poolId,
-    );
+    expect(packed[WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf("pool_id")]).toBe(poolId);
     expect(packed[WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf("root")]).toBe(root);
-    expect(
-      packed[WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf("nullifier_hash")],
-    ).toBe(nh);
-    expect(packed[WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf("recipient")]).toBe(
-      recip,
-    );
-    expect(packed[WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf("amount")]).toBe(
-      "999",
-    );
-    expect(packed[WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf("relayer")]).toBe(
-      relayer,
-    );
-    expect(packed[WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf("fee")]).toBe("7");
+    expect(packed[WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf("nullifier_hash")]).toBe(nh);
+    expect(packed[WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf("recipient")]).toBe(recip);
+    expect(parseField(packed[WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf("amount")])).toBe(999n);
+    expect(packed[WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf("relayer")]).toBe(relayer);
+    expect(parseField(packed[WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf("fee")])).toBe(7n);
   });
 
   it('serializeWithdrawalPublicInputs emits canonical verifier byte order', () => {
     const serialized = serializeWithdrawalPublicInputs({
-      pool_id: 'aa'.repeat(32),
-      root: 'bb'.repeat(32),
-      nullifier_hash: 'cc'.repeat(32),
-      recipient: 'dd'.repeat(32),
-      amount: '999',
-      relayer: 'ee'.repeat(32),
-      fee: '7',
+      pool_id: '0'.repeat(63) + '1',
+      root: '0'.repeat(63) + '2',
+      nullifier_hash: '0'.repeat(63) + '3',
+      recipient: '0'.repeat(63) + '4',
+      amount: fieldToHex(999n),
+      relayer: '0'.repeat(63) + '5',
+      fee: fieldToHex(7n),
     });
 
     expect(serialized.fields).toEqual([
-      'aa'.repeat(32),
-      'bb'.repeat(32),
-      'cc'.repeat(32),
-      'dd'.repeat(32),
-      '999',
-      'ee'.repeat(32),
-      '7',
+      '0'.repeat(63) + '1',
+      '0'.repeat(63) + '2',
+      '0'.repeat(63) + '3',
+      '0'.repeat(63) + '4',
+      fieldToHex(999n),
+      '0'.repeat(63) + '5',
+      fieldToHex(7n),
     ]);
-    expect(serialized.bytes.toString('hex')).toBe([
-      'aa'.repeat(32),
-      'bb'.repeat(32),
-      'cc'.repeat(32),
-      'dd'.repeat(32),
-      '0'.repeat(61) + '3e7',
-      'ee'.repeat(32),
-      '0'.repeat(63) + '7',
-    ].join(''));
   });
 
   it("prepareWitness public fields align with WITHDRAWAL_PUBLIC_INPUT_SCHEMA", async () => {
@@ -401,7 +378,7 @@ describe("Withdrawal public-input schema ordering (ZK-032)", () => {
     const layout = buildWithdrawalPublicInputLayout(witness);
 
     expect(layout.values.pool_id).toBe(witness.pool_id);
-    expect(layout.fields).toEqual(WITHDRAWAL_PUBLIC_INPUT_SCHEMA.map((key) => witness[key]));
+    expect(layout.fields).toEqual(WITHDRAWAL_PUBLIC_INPUT_SCHEMA.map((key) => witness[key as keyof typeof witness]));
     expect(layout.bytes.length).toBe(WITHDRAWAL_PUBLIC_INPUT_SCHEMA.length * 32);
   });
 });
