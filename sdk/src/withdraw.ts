@@ -39,6 +39,7 @@ export interface WithdrawalProofGenerationOptions {
   cache?: ProofCache;
   cacheKey?: string;
   merkleDepth?: number;
+  denomination?: bigint;
 }
 
 interface WithdrawalCacheMaterial {
@@ -139,7 +140,10 @@ export async function generateWithdrawalProof(
     recipient,
     relayer,
     fee,
-    { merkleDepth: options.merkleDepth },
+    { 
+      merkleDepth: options.merkleDepth,
+      denomination: options.denomination,
+    },
   );
 
   const key =
@@ -155,6 +159,7 @@ export async function generateWithdrawalProof(
   const proofGenerator = new ProofGenerator(backend);
   const rawProof = await proofGenerator.generate(witness, {
     merkleDepth: options.merkleDepth,
+    denomination: options.denomination,
   });
 
   // 3. Format the proof for the Soroban contract

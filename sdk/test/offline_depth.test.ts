@@ -10,13 +10,13 @@ import { WitnessValidationError } from "../src/errors";
 import { GROTH16_PROOF_BYTE_LENGTH } from "../src/witness";
 
 const RECIPIENT = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
-const POOL_ID = "11".repeat(32);
+const POOL_ID = "01".repeat(32);
 
 function buildNote(index: number): Note {
   return Note.deriveDeterministic(
     `fixture-${index}`,
     POOL_ID,
-    1_000_000n + BigInt(index),
+    1_000_000_000n, // DEFAULT_DENOMINATION
   );
 }
 
@@ -62,6 +62,7 @@ describe("Offline merkle depth support", () => {
       0n,
       {
         merkleDepth: depth,
+        denomination: note.amount,
       },
     );
     expect(witness.hash_path).toHaveLength(depth);
@@ -91,7 +92,7 @@ describe("Offline merkle depth support", () => {
       generateWithdrawalProof(
         { note, merkleProof: proof, recipient: RECIPIENT },
         backend,
-        { merkleDepth: depth },
+        { merkleDepth: depth, denomination: note.amount },
       ),
     ).resolves.toBeInstanceOf(Buffer);
   });
