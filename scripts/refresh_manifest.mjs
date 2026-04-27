@@ -70,31 +70,7 @@ function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
-function buildCircuitEntry(name) {
-  const filePath = path.join(artifactsDir, `${name}.json`);
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`Missing artifact file: ${path.relative(repoRoot, filePath)}`);
-  }
 
-  const raw = fs.readFileSync(filePath);
-  const artifact = JSON.parse(raw.toString('utf8'));
-  const entry = {
-    circuit_id: name,
-    path: `${name}.json`,
-    artifact_sha256: sha256Hex(raw),
-    bytecode_sha256: sha256Hex(String(artifact.bytecode ?? '')),
-    abi_sha256: sha256Hex(stableStringify(artifact.abi ?? null)),
-    name: artifact.name ?? name,
-    backend: 'nargo/noir',
-  };
-
-  if (name === 'withdraw') {
-    entry.root_depth = PRODUCTION_MERKLE_ROOT_DEPTH;
-    entry.public_input_schema = WITHDRAW_PUBLIC_INPUT_SCHEMA;
-  }
-
-  return entry;
-}
 
 function buildExtraFileEntries() {
   return Object.fromEntries(
