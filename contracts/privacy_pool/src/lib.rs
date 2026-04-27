@@ -41,3 +41,6 @@ mod test;
 
 #[cfg(test)]
 mod integration_test;
+
+#[cfg(test)]
+mod privacy_audit_test;

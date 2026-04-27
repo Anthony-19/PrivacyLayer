@@ -8,6 +8,7 @@ import {
   NOTE_SCALAR_BYTE_LENGTH,
 } from './zk_constants';
 import { computeNoteCommitmentBytes } from './poseidon';
+import { redactBackup, redactNoteToString } from './redaction';
 
 const HEX_PAYLOAD = /^[0-9a-fA-F]+$/;
 const POOL_ID_HEX = /^[0-9a-fA-F]{64}$/;
@@ -306,5 +307,23 @@ export class Note {
     const amount = data.readBigUInt64BE(94);
 
     return new Note(nullifier, secret, poolId, amount);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Debug helpers (ZK-111: safe logging without leaking secrets)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Safely stringify this note for logging without exposing nullifier or secret.
+   */
+  toSafeString(): string {
+    return redactNoteToString(this);
+  }
+
+  /**
+   * Safely stringify a backup string for logging.
+   */
+  static backupToSafeString(backup: string): string {
+    return redactBackup(backup);
   }
 }

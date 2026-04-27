@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "privacy_notice": "ZK-112: All note material (nullifier_hex, secret_hex) in this file is SYNTHETIC test data using predictable patterns (0x01, 0x02, etc.). No real user secrets or production data are included. These vectors are safe for public repository commit.",
   "production_tree_depth": 20,
   "offline_tree_depth": 20,
   "hash_algorithm": "SHA-256 (stand-in for BN254 Pedersen; regenerate with real prover)",

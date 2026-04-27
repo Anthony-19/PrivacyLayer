@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "privacy_notice": "ZK-112: All leaf values in this file are SYNTHETIC test data using predictable patterns (0x01, 0x02, 0xaabb, etc.). No real user commitments or production data are included. These vectors are safe for public repository commit.",
   "description": "Cross-stack Merkle inclusion vectors for ZK-022 and ZK-024. Roots and paths are produced by LocalMerkleTree (sdk/src/merkle.ts) using SHA-256 as a stand-in for BN254 Pedersen. The same hash ordering and zero-node derivation must be reproduced by the Noir circuit helpers in circuits/lib/src/merkle/.",
   "hash_algorithm": "stableHash32('merkle-node', left, right) — SHA-256 stand-in",
   "tree_depth": 4,

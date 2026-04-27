@@ -21,6 +21,7 @@ import {
   merkleMaxLeafIndex,
   validateMerkleProof,
 } from "./merkle";
+import { redactPreparedWitnessToString, redactWithdrawalWitnessToString } from "./redaction";
 
 export type ProvingErrorCode =
   | "ARTIFACT_ERROR"
@@ -238,8 +239,11 @@ export class ProofGenerator {
     try {
       assertValidPreparedWithdrawalWitness(witness, options);
     } catch (e: any) {
+      const witnessInfo = witness && typeof witness === 'object' 
+        ? redactPreparedWitnessToString(witness as PreparedWitness)
+        : '[invalid witness]';
       throw new ProvingError(
-        `Invalid witness: ${e.message}`,
+        `Invalid witness: ${e.message}. Witness summary: ${witnessInfo}`,
         "WITNESS_ERROR",
         e,
       );
@@ -376,6 +380,14 @@ export class ProofGenerator {
         e
       );
     }
+  }
+
+  /**
+   * Debug helper: safely log proof structure without leaking sensitive data.
+   */
+  static debugProofPayload(proof: Groth16Proof): string {
+    const { redactProofToString } = require('./redaction');
+    return redactProofToString(proof);
   }
 
   /**
